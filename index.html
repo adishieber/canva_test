@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="he" dir="rtl" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;700;900&amp;display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Heebo', sans-serif; }
+    body { margin: 0; padding: 0; box-sizing: border-box; background-color: #eff1ed; }
+    .ray-node { cursor: pointer; transition: transform 0.2s, filter 0.2s; }
+    .ray-node:hover { transform: scale(1.08); filter: brightness(1.1); }
+    .cloud-container { animation: fadeIn 0.3s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    
+    /* Custom Scrollbar for the info card */
+    .custom-scroll::-webkit-scrollbar { width: 6px; }
+    .custom-scroll::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); border-radius: 10px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 10px; }
+  </style>
+ </head>
+ <body class="h-screen w-screen overflow-hidden">
+  <div id="app" class="h-full w-full relative" onclick="handleBackgroundClick(event)">
+    <svg id="svg-layer" class="absolute inset-0 w-full h-full pointer-events-none" style="z-index:1;"></svg>
+    
+    <div id="sun-container" class="absolute" style="left: 28%; top: 50%; transform: translate(-50%, -50%); z-index:2;">
+     <svg width="300" height="200" viewBox="0 0 300 200">
+      <ellipse cx="150" cy="100" rx="95" ry="65" fill="#4a7c59" stroke="#3d6b4a" stroke-width="2" />
+      <text x="150" y="95" text-anchor="middle" fill="white" font-size="16" font-weight="900">
+       <tspan x="150" dy="0">תוצאות הסימולציות</tspan>
+       <tspan x="150" dy="22">וגרף</tspan>
+      </text>
+     </svg>
+    </div>
+
+    <div id="ray-nodes"></div>
+
+    <div id="cloud-area" class="absolute hidden custom-scroll" style="right: 5%; top: 12%; width: 38%; z-index: 10; max-height: 76%; overflow-y: auto;"></div>
+
+    <div class="absolute bottom-6 left-1/2 -translate-x-1/2 text-gray-400 text-sm pointer-events-none">
+        לחצו על העיגולים כדי לראות פרטים
+    </div>
+  </div>
+
+  <script>
+    const rays = [
+      { label: 'סרטון פיץ׳', color: '#6b9e7a', text: 'צלמו סרטון (עד דקה) שמשכנע באיזה אפיק לבחור. הקדישו 15 שניות בסרטון ל"פיל שבחדר" – הציגו את החיסרון המרכזי שעלול להיות טמון באפיק זה והסבירו מדוע בכל זאת המסלול הזה מנצח עבורכם.' },
+      { label: 'עלון מידע (ברושור)', color: '#82b48e', text: 'צרו מסמך מעוצב המציג את הנתונים והגרפים עם המלצה לבחירה באפיק הרצוי. אל תשכחו להוסיף את "האותיות הקטנות" - סיכונים שחשוב להכיר והסבר קצר מה בכל זאת עלול להשתבש.' },
+      { label: 'פוסט קרוסלה', color: '#5a8f6b', text: 'עצבו סדרה של 4–5 תמונות שמעבירות את סיפור ההשקעה והגרפים. הקדישו את אחד השקפים ל"מיתוס מול מציאות" או "איפה הקאצ\'?", שבו תחשפו ויזואלית נקודות תורפה של המסלול.' },
+      { label: 'מצגת', color: '#78ab86', text: 'צרו מצגת נקייה (3–4 שקופיות) המציגה את ההשוואה. שקופית אחת חייבת להיות מוקדשת ל"מבחן המציאות" – למשל רשימת בולטים המציגה את מגבלות המודל המתמטי מול חוסר הוודאות של השוק.' },
+      { label: 'מזכר מנהלים', color: '#4a7c59', text: 'כתבו "מכתב למשקיע" רשמי וממוקד (עמוד אחד) בליווי הגרפים. שלבו פסקה קריטית תחת הכותרת "ניהול סיכונים וחסמים" המנתחת בצורה לוגית את נקודות התורפה של המסלול מול תנאי המציאות.' },
+      { label: 'בחירה חופשית', color: '#8fc49b', text: 'יש לכם רעיון אחר להציג את התוצרים? קבלו אישור מהמנחה וממשו אותו. בבקשת האישור שלכם, הגדירו מראש כיצד בדיוק תשלבו בתוצר את התשובות לשאלות הביקורתיות שחקרתם.' },
+      { label: 'אינפוגרפיקה', color: '#6fa87d', text: 'עצבו פוסטר המרכז את כל המידע ויזואלית במקום אחד. שלבו בפוסטר "תמרור אזהרה" ⚠️ בולט, שלצידו מפורטים הסיכונים והסיבות לכך שאנשים נמנעים מהמסלול הזה.' },
+      { label: 'פודקסט פיננסי', color: '#5d9470', text: 'הקליטו קטע שמע של 2–3 דקות בסגנון ייעוץ כלכלי. שלבו בפודקאסט קול של "מאזין סקפטי" ששואל בדיוק את השאלות הקשות, וענו לו על בסיס תובנות שחקרתם.' }
+    ];
+
+    const nodesContainer = document.getElementById('ray-nodes');
+    const sunContainer = document.getElementById('sun-container');
+    const svgLayer = document.getElementById('svg-layer');
+
+    function positionNodes() {
+      nodesContainer.innerHTML = '';
+      svgLayer.innerHTML = '';
+      
+      const sunRect = sunContainer.getBoundingClientRect();
+      const centerX = sunRect.left + sunRect.width / 2;
+      const centerY = sunRect.top + sunRect.height / 2;
+      
+      // Decreased radius calculations for shorter connecting lines
+      const radiusX = Math.min(window.innerWidth * 0.18, 240);
+      const radiusY = Math.min(window.innerHeight * 0.28, 190);
+
+      rays.forEach((ray, i) => {
+        const angle = (i / rays.length) * Math.PI * 2 - Math.PI / 2;
+        const nx = centerX + radiusX * Math.cos(angle);
+        const ny = centerY + radiusY * Math.sin(angle);
+
+        // Create Node (Increased dimensions to 130x85)
+        const node = document.createElement('div');
+        node.className = 'ray-node absolute flex items-center justify-center text-center p-2 shadow-md';
+        node.style.cssText = `left:${nx - 65}px; top:${ny - 42.5}px; width:130px; height:85px; background:${ray.color}; border-radius:50%; z-index:5;`;
+        node.innerHTML = `<span class="text-white text-[13px] font-bold leading-tight select-none">${ray.label}</span>`;
+        node.onclick = (e) => { e.stopPropagation(); showCloud(i); };
+        nodesContainer.appendChild(node);
+
+        // Create Line
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', centerX);
+        line.setAttribute('y1', centerY);
+        line.setAttribute('x2', nx);
+        line.setAttribute('y2', ny);
+        line.setAttribute('stroke', ray.color);
+        line.setAttribute('stroke-width', '2');
+        line.setAttribute('opacity', '0.5');
+        svgLayer.appendChild(line);
+      });
+    }
+
+    function showCloud(index) {
+      const cloud = document.getElementById('cloud-area');
+      const ray = rays[index];
+      cloud.classList.remove('hidden');
+      cloud.innerHTML = `
+        <div class="bg-white border-r-8 p-6 shadow-2xl rounded-l-2xl" style="border-color:${ray.color}">
+          <div class="flex justify-between items-start mb-4">
+            <h3 class="font-black text-2xl" style="color:${ray.color}">${ray.label}</h3>
+            <button onclick="closeCloud()" class="text-gray-400 hover:text-gray-600 font-bold text-lg leading-none">&times;</button>
+          </div>
+          <p class="text-gray-700 text-base leading-relaxed">${ray.text}</p>
+        </div>
+      `;
+    }
+
+    function closeCloud() {
+      document.getElementById('cloud-area').classList.add('hidden');
+    }
+
+    function handleBackgroundClick(e) {
+      if (!e.target.closest('.ray-node') && !e.target.closest('#cloud-area')) {
+        closeCloud();
+      }
+    }
+
+    window.addEventListener('resize', positionNodes);
+    positionNodes();
+    lucide.createIcons();
+  </script>
+ </body>
+</html>
